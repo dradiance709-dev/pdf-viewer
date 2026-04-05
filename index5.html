@@ -247,6 +247,37 @@
     }
 
     @media (max-width: 900px) {
+      .toolbar .desktop-only {
+        display: none;
+      }
+
+      .mobile-controls {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        width: 100%;
+      }
+
+      .mobile-controls button {
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid #37373c;
+        background: #232328;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .nav-bar {
+        padding-top: 6px;
+        gap: 10px;
+      }
+
+      .range-wrap {
+        order: 2;
+      }
+
       .spread {
         display: block;
       }
@@ -274,12 +305,12 @@
   <div class="toolbar">
     <input id="pdfUrl" type="text" placeholder="PDF 링크를 입력하세요" value="sample4.pdf" />
     <button id="loadBtn">불러오기</button>
-    <button id="firstBtn" class="secondary">처음</button>
-    <button id="prevBtn" class="secondary">이전</button>
-    <button id="nextBtn" class="secondary">다음</button>
-    <button id="lastBtn" class="secondary">끝</button>
-    <input id="jumpInput" type="number" min="1" step="1" placeholder="페이지" />
-    <button id="jumpBtn" class="secondary">이동</button>
+    <button id="firstBtn" class="secondary desktop-only">처음</button>
+    <button id="prevBtn" class="secondary desktop-only">이전</button>
+    <button id="nextBtn" class="secondary desktop-only">다음</button>
+    <button id="lastBtn" class="secondary desktop-only">끝</button>
+    <input id="jumpInput" class="desktop-only" type="number" min="1" step="1" placeholder="페이지" />
+    <button id="jumpBtn" class="secondary desktop-only">이동</button>
   </div>
 
   <div class="status" id="status">PDF 링크를 넣고 불러오기를 누르세요.</div>
@@ -301,6 +332,12 @@
   </div>
 
   <div class="nav-bar">
+    <div class="mobile-controls">
+      <button id="mobileFirstBtn">처음</button>
+      <button id="mobilePrevBtn">이전</button>
+      <button id="mobileNextBtn">다음</button>
+      <button id="mobileLastBtn">끝</button>
+    </div>
     <div class="range-wrap">
       <span class="mini-info">빠른 이동</span>
       <input id="pageSlider" type="range" min="1" max="1" step="1" value="1" />
@@ -324,6 +361,10 @@
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     const lastBtn = document.getElementById('lastBtn');
+    const mobileFirstBtn = document.getElementById('mobileFirstBtn');
+    const mobilePrevBtn = document.getElementById('mobilePrevBtn');
+    const mobileNextBtn = document.getElementById('mobileNextBtn');
+    const mobileLastBtn = document.getElementById('mobileLastBtn');
     const jumpInput = document.getElementById('jumpInput');
     const jumpBtn = document.getElementById('jumpBtn');
     const pageSlider = document.getElementById('pageSlider');
@@ -570,6 +611,10 @@
     prevBtn.addEventListener('click', () => goTo(currentStart - getStep(), 'prev'));
     nextBtn.addEventListener('click', () => goTo(currentStart + getStep(), 'next'));
     lastBtn.addEventListener('click', () => goTo(getLastStart(), 'next'));
+    mobileFirstBtn.addEventListener('click', () => goTo(1, 'prev'));
+    mobilePrevBtn.addEventListener('click', () => goTo(currentStart - getStep(), 'prev'));
+    mobileNextBtn.addEventListener('click', () => goTo(currentStart + getStep(), 'next'));
+    mobileLastBtn.addEventListener('click', () => goTo(getLastStart(), 'next'));
     jumpBtn.addEventListener('click', () => goTo(Number(jumpInput.value), Number(jumpInput.value) > currentStart ? 'next' : 'prev'));
     jumpInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') jumpBtn.click();
