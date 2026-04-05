@@ -112,6 +112,17 @@
       backface-visibility: hidden;
       transform-style: preserve-3d;
       will-change: transform, opacity, filter;
+      z-index: 1;
+    }
+
+    #leftCurrent,
+    #rightCurrent {
+      z-index: 2;
+    }
+
+    #leftNext,
+    #rightNext {
+      z-index: 1;
     }
 
     .page-layer canvas {
@@ -508,8 +519,16 @@
       const otherCurrent = mobile ? null : (direction === 'next' ? leftCurrent : rightCurrent);
       const otherIncoming = mobile ? null : (direction === 'next' ? leftNext : rightNext);
 
-      leftNext.style.display = mobile ? 'none' : 'block';
-      rightNext.style.display = 'block';
+      if (mobile) {
+        leftNext.style.display = 'none';
+        rightNext.style.display = 'block';
+      } else if (direction === 'next') {
+        leftNext.style.display = 'none';
+        rightNext.style.display = 'block';
+      } else {
+        leftNext.style.display = 'block';
+        rightNext.style.display = 'none';
+      }
 
       // 정지해 있는 반대편 페이지는 넘김 도중에는 유지하고,
       // 애니메이션이 끝나는 시점에만 교체한다.
@@ -518,19 +537,25 @@
       void animatedLayer.offsetWidth;
       animatedLayer.classList.add(direction === 'next' ? 'turn-next' : 'turn-prev');
 
-      window.setTimeout(() => {
+      const finishTurn = () => {
+        animatedLayer.removeEventListener('animationend', finishTurn);
         currentStart = nextStart;
-        if (!mobile && otherCurrent && otherIncoming) {
-          copyLayerContent(otherIncoming, otherCurrent);
+
+        if (mobile) {
+          copyLayerContent(rightNext, rightCurrent);
+        } else {
+          copyLayerContent(leftNext, leftCurrent);
+          copyLayerContent(rightNext, rightCurrent);
         }
-        copyLayerContent(leftNext, leftCurrent);
-        copyLayerContent(rightNext, rightCurrent);
+
         animatedLayer.classList.remove('turn-next', 'turn-prev');
         leftNext.style.display = 'none';
         rightNext.style.display = 'none';
         updateUi();
         isAnimating = false;
-      }, TURN_DURATION);
+      };
+
+      animatedLayer.addEventListener('animationend', finishTurn, { once: true });
     }
 
     loadBtn.addEventListener('click', () => {
