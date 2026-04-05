@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Flip Viewer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #111;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 12px;
+      background: #1b1b1b;
+      border-bottom: 1px solid #333;
+      flex-wrap: wrap;
+    }
+
+    .toolbar input {
+      flex: 1;
+      min-width: 280px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #444;
+      background: #222;
+      color: #fff;
+    }
+
+    .toolbar button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: #fff;
+      color: #111;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .toolbar button.secondary {
+      background: #2a2a2a;
+      color: #fff;
+      border: 1px solid #444;
+    }
+
+    .status {
+      padding: 8px 12px;
+      font-size: 14px;
+      color: #bbb;
+      background: #151515;
+      border-bottom: 1px solid #222;
+    }
+
+    .viewer-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: auto;
+    }
+
+    .book {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      perspective: 1600px;
+    }
+
+    .spread {
+      display: flex;
+      gap: 0;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      transform-style: preserve-3d;
+    }
+
+    .page {
+      width: min(42vw, 520px);
+      aspect-ratio: 0.707 / 1;
+      background: #fff;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #ccc;
+    }
+
+    .page.left {
+      border-radius: 12px 0 0 12px;
+      transform-origin: right center;
+    }
+
+    .page.right {
+      border-radius: 0 12px 12px 0;
+      transform-origin: left center;
+    }
+
+    .page canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
+    }
+
+    .page-number {
+      position: absolute;
+      bottom: 10px;
+      font-size: 12px;
+      color: #666;
+      background: rgba(255,255,255,0.8);
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
+
+    .left .page-number { left: 10px; }
+    .right .page-number { right: 10px; }
+
+    .page.flipping-next {
+      animation: flipNext 0.55s ease;
+      z-index: 3;
+      backface-visibility: hidden;
+    }
+
+    .page.flipping-prev {
+      animation: flipPrev 0.55s ease;
+      z-index: 3;
+      backface-visibility: hidden;
+    }
+
+    @keyframes flipNext {
+      from { transform: rotateY(0deg); filter: brightness(1); }
+      50% { filter: brightness(0.9); }
+      to { transform: rotateY(-180deg); filter: brightness(0.8); }
+    }
+
+    @keyframes flipPrev {
+      from { transform: rotateY(0deg); filter: brightness(1); }
+      50% { filter: brightness(0.9); }
+      to { transform: rotateY(180deg); filter: brightness(0.8); }
+    }
+
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      color: #888;
+      font-size: 14px;
+      background:
+        linear-gradient(135deg, #f6f6f6 25%, #fbfbfb 25%, #fbfbfb 50%, #f6f6f6 50%, #f6f6f6 75%, #fbfbfb 75%, #fbfbfb 100%);
+      background-size: 24px 24px;
+    }
+
+    .hint {
+      text-align: center;
+      padding: 12px;
+      color: #999;
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .page {
+        width: min(44vw, 360px);
+      }
+      .viewer-wrap {
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <input id="pdfUrl" type="text" placeholder="PDF 링크를 입력하세요" />
+    <button id="loadBtn">불러오기</button>
+    <button id="prevBtn" class="secondary">이전</button>
+    <button id="nextBtn" class="secondary">다음</button>
+  </div>
+
+  <div class="status" id="status">PDF 링크를 넣고 불러오기를 누르세요.</div>
+
+  <div class="viewer-wrap">
+    <div>
+      <div class="book">
+        <div class="spread">
+          <div class="page left" id="leftPage">
+            <div class="placeholder">왼쪽 페이지</div>
+          </div>
+          <div class="page right" id="rightPage">
+            <div class="placeholder">오른쪽 페이지</div>
+          </div>
+        </div>
+      </div>
+      <div class="hint">좌우 두 페이지로 보고, 버튼으로 넘기는 방식입니다.</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs" type="module"></script>
+  <script type="module">
+    import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs';
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+
+    const pdfUrlInput = document.getElementById('pdfUrl');
+    const loadBtn = document.getElementById('loadBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const leftPage = document.getElementById('leftPage');
+    const rightPage = document.getElementById('rightPage');
+    const status = document.getElementById('status');
+
+    let pdfDoc = null;
+    let currentSpreadStart = 1;
+    let isAnimating = false;
+
+    // 예시용 기본 링크. 실제 사용 시 여기 값을 바꾸거나 input에 넣으세요.
+    pdfUrlInput.value = '';
+
+    function setStatus(text) {
+      status.textContent = text;
+    }
+
+    function clearPage(el, label) {
+      el.innerHTML = `<div class="placeholder">${label}</div>`;
+    }
+
+    async function renderPage(pageNumber, container, side) {
+      if (!pdfDoc || pageNumber < 1 || pageNumber > pdfDoc.numPages) {
+        clearPage(container, side === 'left' ? '빈 페이지' : '빈 페이지');
+        return;
+      }
+
+      const page = await pdfDoc.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1.6 });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      container.innerHTML = '';
+      container.appendChild(canvas);
+
+      const pageNumberEl = document.createElement('div');
+      pageNumberEl.className = 'page-number';
+      pageNumberEl.textContent = `${pageNumber}`;
+      container.appendChild(pageNumberEl);
+
+      await page.render({
+        canvasContext: context,
+        viewport
+      }).promise;
+    }
+
+    async function renderSpread(startPage) {
+      if (!pdfDoc) return;
+      setStatus(`총 ${pdfDoc.numPages}페이지 중 ${startPage}-${Math.min(startPage + 1, pdfDoc.numPages)}페이지 표시 중`);
+      await Promise.all([
+        renderPage(startPage, leftPage, 'left'),
+        renderPage(startPage + 1, rightPage, 'right')
+      ]);
+    }
+
+    async function loadPdf(url) {
+      try {
+        setStatus('PDF 불러오는 중...');
+        const loadingTask = pdfjsLib.getDocument(url);
+        pdfDoc = await loadingTask.promise;
+        currentSpreadStart = 1;
+        await renderSpread(currentSpreadStart);
+      } catch (error) {
+        console.error(error);
+        setStatus('PDF를 불러오지 못했습니다. CORS 허용된 직접 PDF 링크인지 확인해주세요.');
+        clearPage(leftPage, '로드 실패');
+        clearPage(rightPage, '로드 실패');
+      }
+    }
+
+    async function flip(direction) {
+      if (!pdfDoc || isAnimating) return;
+
+      const nextStart = direction === 'next'
+        ? currentSpreadStart + 2
+        : currentSpreadStart - 2;
+
+      if (nextStart < 1 || nextStart > pdfDoc.numPages) return;
+
+      isAnimating = true;
+
+      const animatedEl = direction === 'next' ? rightPage : leftPage;
+      animatedEl.classList.remove('flipping-next', 'flipping-prev');
+      void animatedEl.offsetWidth;
+      animatedEl.classList.add(direction === 'next' ? 'flipping-next' : 'flipping-prev');
+
+      setTimeout(async () => {
+        currentSpreadStart = nextStart;
+        await renderSpread(currentSpreadStart);
+        animatedEl.classList.remove('flipping-next', 'flipping-prev');
+        isAnimating = false;
+      }, 520);
+    }
+
+    loadBtn.addEventListener('click', () => {
+      const url = pdfUrlInput.value.trim();
+      if (!url) {
+        setStatus('PDF 링크를 먼저 입력해주세요.');
+        return;
+      }
+      loadPdf(url);
+    });
+
+    nextBtn.addEventListener('click', () => flip('next'));
+    prevBtn.addEventListener('click', () => flip('prev'));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') flip('next');
+      if (e.key === 'ArrowLeft') flip('prev');
+    });
+  </script>
+</body>
+</html>
