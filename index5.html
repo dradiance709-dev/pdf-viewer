@@ -304,8 +304,8 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
 
     const TURN_DURATION = 520;
-    const STATIC_SWAP_RATIO = 0.62;
-    const FINAL_SWAP_OFFSET = 18;
+    const STATIC_SWAP_RATIO = 1;
+    const FINAL_SWAP_OFFSET = 0;
 
     const pdfUrlInput = document.getElementById('pdfUrl');
     const loadBtn = document.getElementById('loadBtn');
@@ -531,7 +531,7 @@
         rightNext.style.display = 'none';
         updateUi();
         isAnimating = false;
-      }, TURN_DURATION - FINAL_SWAP_OFFSET);
+      }, TURN_DURATION);
     }
 
     loadBtn.addEventListener('click', () => {
