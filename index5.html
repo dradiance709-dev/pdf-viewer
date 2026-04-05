@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Flip Viewer</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f0f10;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      background: #171717;
+      border-bottom: 1px solid #262626;
+      flex-wrap: wrap;
+    }
+
+    .toolbar input,
+    .toolbar select {
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid #393939;
+      background: #1f1f1f;
+      color: #fff;
+      outline: none;
+    }
+
+    .toolbar input[type="text"] {
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .toolbar input[type="number"] {
+      width: 110px;
+    }
+
+    .toolbar button {
+      padding: 12px 16px;
+      border: 0;
+      border-radius: 14px;
+      background: #fff;
+      color: #111;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .toolbar button.secondary {
+      background: #242424;
+      color: #fff;
+      border: 1px solid #393939;
+    }
+
+    .status {
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #c7c7c7;
+      background: #131313;
+      border-bottom: 1px solid #1f1f1f;
+    }
+
+    .viewer-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 26px 16px 18px;
+      overflow: auto;
+      background:
+        radial-gradient(circle at center, rgba(255,255,255,0.04), rgba(255,255,255,0) 42%),
+        linear-gradient(to bottom, #0d0d0e, #080809);
+    }
+
+    .book {
+      perspective: 2400px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .spread {
+      position: relative;
+      display: flex;
+      box-shadow: 0 24px 62px rgba(0,0,0,0.45);
+      transform-style: preserve-3d;
+      isolation: isolate;
+    }
+
+    .page-stack {
+      position: relative;
+      width: min(42vw, 520px);
+      aspect-ratio: 0.707 / 1;
+    }
+
+    .page {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #d8d8d8;
+      backface-visibility: hidden;
+      transform-style: preserve-3d;
+      will-change: transform, filter, opacity;
+    }
+
+    .page.left {
+      border-radius: 18px 0 0 18px;
+      transform-origin: right bottom;
+    }
+
+    .page.right {
+      border-radius: 0 18px 18px 0;
+      transform-origin: left bottom;
+    }
+
+    .page.under {
+      z-index: 1;
+      background: #fcfcfc;
+      opacity: 1;
+    }
+
+    .page.current {
+      z-index: 3;
+      opacity: 1;
+    }
+
+    .gutter-shadow {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 8px;
+      height: 100%;
+      transform: translateX(-50%);
+      z-index: 5;
+      pointer-events: none;
+      background: linear-gradient(to right, rgba(0,0,0,0.05), rgba(0,0,0,0.015), rgba(0,0,0,0.05));
+      opacity: 0.9;
+    }
+
+    .page canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
+    }
+
+    .page-number {
+      position: absolute;
+      bottom: 10px;
+      font-size: 12px;
+      color: #666;
+      background: rgba(255,255,255,0.84);
+      padding: 4px 8px;
+      border-radius: 999px;
+      z-index: 8;
+    }
+
+    .left .page-number { left: 10px; }
+    .right .page-number { right: 10px; }
+
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      color: #888;
+      font-size: 14px;
+      background:
+        linear-gradient(135deg, #f7f7f7 25%, #fbfbfb 25%, #fbfbfb 50%, #f7f7f7 50%, #f7f7f7 75%, #fbfbfb 75%, #fbfbfb 100%);
+      background-size: 24px 24px;
+    }
+
+    .page.turn-next,
+    .page.turn-prev {
+      z-index: 12;
+    }
+
+    .page.turn-next::before,
+    .page.turn-prev::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .page.turn-next::after,
+    .page.turn-prev::after {
+      content: "";
+      position: absolute;
+      bottom: -2%;
+      width: 42%;
+      height: 34%;
+      pointer-events: none;
+      filter: blur(10px);
+      z-index: 2;
+    }
+
+    .page.turn-next {
+      animation: turnNext 0.5s cubic-bezier(0.22, 0.78, 0.22, 1) forwards;
+    }
+
+    .page.turn-next::before {
+      background:
+        radial-gradient(circle at 100% 100%, rgba(255,255,255,0.14) 0 11%, rgba(255,255,255,0) 21%),
+        linear-gradient(to left, rgba(0,0,0,0.10), rgba(0,0,0,0.01) 15%, rgba(255,255,255,0.08) 34%, rgba(255,255,255,0) 54%);
+      clip-path: polygon(100% 100%, 84% 100%, 100% 84%);
+      animation: curlRight 0.5s ease forwards;
+    }
+
+    .page.turn-next::after {
+      right: -7%;
+      background: radial-gradient(circle at 80% 82%, rgba(0,0,0,0.22), rgba(0,0,0,0.04) 56%, rgba(0,0,0,0) 72%);
+      animation: shadowRight 0.5s ease forwards;
+    }
+
+    .page.turn-prev {
+      animation: turnPrev 0.5s cubic-bezier(0.22, 0.78, 0.22, 1) forwards;
+    }
+
+    .page.turn-prev::before {
+      background:
+        radial-gradient(circle at 0% 100%, rgba(255,255,255,0.14) 0 11%, rgba(255,255,255,0) 21%),
+        linear-gradient(to right, rgba(0,0,0,0.10), rgba(0,0,0,0.01) 15%, rgba(255,255,255,0.08) 34%, rgba(255,255,255,0) 54%);
+      clip-path: polygon(0 100%, 16% 100%, 0 84%);
+      animation: curlLeft 0.5s ease forwards;
+    }
+
+    .page.turn-prev::after {
+      left: -7%;
+      background: radial-gradient(circle at 20% 82%, rgba(0,0,0,0.22), rgba(0,0,0,0.04) 56%, rgba(0,0,0,0) 72%);
+      animation: shadowLeft 0.5s ease forwards;
+    }
+
+    @keyframes turnNext {
+      0% { transform: rotateY(0deg) skewY(0deg); filter: brightness(1); }
+      25% { transform: rotateY(-16deg) skewY(0.7deg); filter: brightness(0.995); }
+      60% { transform: rotateY(-92deg) skewY(0.6deg); filter: brightness(0.965); }
+      100% { transform: rotateY(-168deg) skewY(0deg); filter: brightness(0.92); }
+    }
+
+    @keyframes turnPrev {
+      0% { transform: rotateY(0deg) skewY(0deg); filter: brightness(1); }
+      25% { transform: rotateY(16deg) skewY(-0.7deg); filter: brightness(0.995); }
+      60% { transform: rotateY(92deg) skewY(-0.6deg); filter: brightness(0.965); }
+      100% { transform: rotateY(168deg) skewY(0deg); filter: brightness(0.92); }
+    }
+
+    @keyframes curlRight {
+      0% { clip-path: polygon(100% 100%, 88% 100%, 100% 88%); opacity: 0.08; }
+      55% { clip-path: polygon(100% 100%, 56% 100%, 100% 50%); opacity: 0.22; }
+      100% { clip-path: polygon(100% 100%, 20% 100%, 100% 20%); opacity: 0.16; }
+    }
+
+    @keyframes curlLeft {
+      0% { clip-path: polygon(0 100%, 12% 100%, 0 88%); opacity: 0.08; }
+      55% { clip-path: polygon(0 100%, 44% 100%, 0 50%); opacity: 0.22; }
+      100% { clip-path: polygon(0 100%, 80% 100%, 0 20%); opacity: 0.16; }
+    }
+
+    @keyframes shadowRight {
+      0% { transform: translate(0, 0) scale(0.78); opacity: 0.10; }
+      50% { transform: translate(-16%, -10%) scale(1); opacity: 0.26; }
+      100% { transform: translate(-26%, -14%) scale(1.06); opacity: 0.08; }
+    }
+
+    @keyframes shadowLeft {
+      0% { transform: translate(0, 0) scale(0.78); opacity: 0.10; }
+      50% { transform: translate(16%, -10%) scale(1); opacity: 0.26; }
+      100% { transform: translate(26%, -14%) scale(1.06); opacity: 0.08; }
+    }
+
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px 16px;
+      background: #101010;
+      border-top: 1px solid #1f1f1f;
+      flex-wrap: wrap;
+    }
+
+    .range-wrap {
+      flex: 1;
+      min-width: 240px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #d7d7d7;
+    }
+
+    .mini-info {
+      color: #aaa;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .hint {
+      text-align: center;
+      padding: 10px 12px 14px;
+      color: #8f8f8f;
+      font-size: 13px;
+      background: #101010;
+    }
+
+    @media (max-width: 900px) {
+      .page-stack {
+        width: min(44vw, 360px);
+      }
+
+      .viewer-wrap {
+        padding: 16px 8px 12px;
+      }
+
+      .toolbar {
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <input id="pdfUrl" type="text" placeholder="PDF 링크를 입력하세요" value="sample1.pdf" />
+    <button id="loadBtn">불러오기</button>
+    <button id="firstBtn" class="secondary">처음</button>
+    <button id="prevBtn" class="secondary">이전</button>
+    <button id="nextBtn" class="secondary">다음</button>
+    <button id="lastBtn" class="secondary">끝</button>
+    <input id="jumpInput" type="number" min="1" step="1" placeholder="페이지" />
+    <button id="jumpBtn" class="secondary">이동</button>
+  </div>
+
+  <div class="status" id="status">PDF 링크를 넣고 불러오기를 누르세요.</div>
+
+  <div class="viewer-wrap">
+    <div>
+      <div class="book">
+        <div class="spread" id="spread">
+          <div class="page-stack">
+            <div class="page under left" id="leftUnder"><div class="placeholder">왼쪽 페이지</div></div>
+            <div class="page current left" id="leftPage"><div class="placeholder">왼쪽 페이지</div></div>
+          </div>
+          <div class="gutter-shadow"></div>
+          <div class="page-stack">
+            <div class="page under right" id="rightUnder"><div class="placeholder">오른쪽 페이지</div></div>
+            <div class="page current right" id="rightPage"><div class="placeholder">오른쪽 페이지</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-bar">
+    <div class="range-wrap">
+      <span class="mini-info">빠른 이동</span>
+      <input id="pageSlider" type="range" min="1" max="1" step="2" value="1" />
+      <span class="mini-info" id="spreadInfo">1-2</span>
+    </div>
+  </div>
+
+  <div class="hint">좌우 두 페이지 보기, 페이지 입력 이동, 아래 슬라이더 빠른 이동을 지원합니다.</div>
+
+  <script type="module">
+    import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs';
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+
+    const pdfUrlInput = document.getElementById('pdfUrl');
+    const loadBtn = document.getElementById('loadBtn');
+    const firstBtn = document.getElementById('firstBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const lastBtn = document.getElementById('lastBtn');
+    const jumpInput = document.getElementById('jumpInput');
+    const jumpBtn = document.getElementById('jumpBtn');
+    const pageSlider = document.getElementById('pageSlider');
+    const spreadInfo = document.getElementById('spreadInfo');
+
+    const leftPage = document.getElementById('leftPage');
+    const rightPage = document.getElementById('rightPage');
+    const leftUnder = document.getElementById('leftUnder');
+    const rightUnder = document.getElementById('rightUnder');
+    const status = document.getElementById('status');
+
+    let pdfDoc = null;
+    let currentSpreadStart = 1;
+    let isAnimating = false;
+    let renderToken = 0;
+    const TURN_DURATION = 500;
+    const pageCache = new Map();
+
+    function setStatus(text) {
+      status.textContent = text;
+    }
+
+    function clearPage(el, label) {
+      el.innerHTML = `<div class="placeholder">${label}</div>`;
+    }
+
+    function normalizeSpreadStart(page) {
+      const n = Math.max(1, Number(page) || 1);
+      return n % 2 === 0 ? n - 1 : n;
+    }
+
+    function getLastSpreadStart() {
+      if (!pdfDoc) return 1;
+      return pdfDoc.numPages % 2 === 0 ? pdfDoc.numPages - 1 : pdfDoc.numPages;
+    }
+
+    function clampSpreadStart(page) {
+      return Math.min(getLastSpreadStart(), Math.max(1, normalizeSpreadStart(page)));
+    }
+
+    function updateControls() {
+      if (!pdfDoc) return;
+      pageSlider.max = String(getLastSpreadStart());
+      pageSlider.value = String(currentSpreadStart);
+      jumpInput.max = String(pdfDoc.numPages);
+      spreadInfo.textContent = `${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}`;
+      setStatus(`총 ${pdfDoc.numPages}페이지 중 ${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}페이지 표시 중`);
+    }
+
+    async function getRenderedCanvas(pageNumber) {
+      if (!pdfDoc || pageNumber < 1 || pageNumber > pdfDoc.numPages) return null;
+      if (pageCache.has(pageNumber)) return pageCache.get(pageNumber);
+
+      const page = await pdfDoc.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const targetWidth = 1000;
+      const scale = targetWidth / baseViewport.width;
+      const viewport = page.getViewport({ scale });
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({ canvasContext: context, viewport }).promise;
+      pageCache.set(pageNumber, canvas);
+      return canvas;
+    }
+
+    async function renderPage(pageNumber, container) {
+      if (!pdfDoc || pageNumber < 1 || pageNumber > pdfDoc.numPages) {
+        clearPage(container, '빈 페이지');
+        return;
+      }
+
+      const sourceCanvas = await getRenderedCanvas(pageNumber);
+      const canvas = document.createElement('canvas');
+      canvas.width = sourceCanvas.width;
+      canvas.height = sourceCanvas.height;
+      canvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
+
+      container.innerHTML = '';
+      container.appendChild(canvas);
+
+      const pageNumberEl = document.createElement('div');
+      pageNumberEl.className = 'page-number';
+      pageNumberEl.textContent = `${pageNumber}`;
+      container.appendChild(pageNumberEl);
+    }
+
+    async function renderSpread(startPage, mode = 'current', token = renderToken) {
+      const leftTarget = mode === 'under' ? leftUnder : leftPage;
+      const rightTarget = mode === 'under' ? rightUnder : rightPage;
+
+      await Promise.all([
+        renderPage(startPage, leftTarget),
+        renderPage(startPage + 1, rightTarget)
+      ]);
+
+      if (token !== renderToken) return;
+      if (mode === 'current') updateControls();
+    }
+
+    async function preloadAround(startPage) {
+      if (!pdfDoc) return;
+      const targets = [
+        startPage,
+        startPage + 1,
+        startPage + 2,
+        startPage + 3,
+        startPage - 2,
+        startPage - 1
+      ].filter((p) => p >= 1 && p <= pdfDoc.numPages);
+
+      await Promise.allSettled(targets.map((p) => getRenderedCanvas(p)));
+    }
+
+    async function loadPdf(url) {
+      try {
+        renderToken += 1;
+        const myToken = renderToken;
+        pageCache.clear();
+        setStatus('PDF 불러오는 중...');
+        const loadingTask = pdfjsLib.getDocument(url);
+        pdfDoc = await loadingTask.promise;
+        currentSpreadStart = 1;
+        await preloadAround(currentSpreadStart);
+        if (myToken !== renderToken) return;
+        await renderSpread(currentSpreadStart, 'current', myToken);
+        await renderSpread(Math.min(currentSpreadStart + 2, getLastSpreadStart()), 'under', myToken);
+      } catch (error) {
+        console.error(error);
+        setStatus('PDF를 불러오지 못했습니다. 링크나 파일 경로를 다시 확인해주세요.');
+        clearPage(leftPage, '로드 실패');
+        clearPage(rightPage, '로드 실패');
+        clearPage(leftUnder, '로드 실패');
+        clearPage(rightUnder, '로드 실패');
+      }
+    }
+
+    async function goToSpread(targetStart, animateDirection = null) {
+      if (!pdfDoc || isAnimating) return;
+      const nextStart = clampSpreadStart(targetStart);
+      if (nextStart === currentSpreadStart) return;
+
+      isAnimating = true;
+      const direction = animateDirection || (nextStart > currentSpreadStart ? 'next' : 'prev');
+      await preloadAround(nextStart);
+      await renderSpread(nextStart, 'under');
+
+      const animatedEl = direction === 'next' ? rightPage : leftPage;
+      const className = direction === 'next' ? 'turn-next' : 'turn-prev';
+      animatedEl.classList.remove('turn-next', 'turn-prev');
+      void animatedEl.offsetWidth;
+      animatedEl.classList.add(className);
+
+      window.setTimeout(() => {
+        currentSpreadStart = nextStart;
+        leftPage.innerHTML = leftUnder.innerHTML;
+        rightPage.innerHTML = rightUnder.innerHTML;
+        animatedEl.classList.remove('turn-next', 'turn-prev');
+        updateControls();
+        const preloadStart = clampSpreadStart(direction === 'next' ? currentSpreadStart + 2 : currentSpreadStart - 2);
+        renderSpread(preloadStart, 'under').finally(() => {
+          isAnimating = false;
+        });
+      }, TURN_DURATION - 10);
+    }
+
+    loadBtn.addEventListener('click', () => {
+      const url = pdfUrlInput.value.trim();
+      if (!url) {
+        setStatus('PDF 링크를 먼저 입력해주세요.');
+        return;
+      }
+      loadPdf(url);
+    });
+
+    firstBtn.addEventListener('click', () => goToSpread(1, 'prev'));
+    prevBtn.addEventListener('click', () => goToSpread(currentSpreadStart - 2, 'prev'));
+    nextBtn.addEventListener('click', () => goToSpread(currentSpreadStart + 2, 'next'));
+    lastBtn.addEventListener('click', () => goToSpread(getLastSpreadStart(), 'next'));
+    jumpBtn.addEventListener('click', () => goToSpread(Number(jumpInput.value), Number(jumpInput.value) > currentSpreadStart ? 'next' : 'prev'));
+    jumpInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') jumpBtn.click();
+    });
+
+    pageSlider.addEventListener('input', () => {
+      spreadInfo.textContent = `${normalizeSpreadStart(pageSlider.value)}-${Math.min(normalizeSpreadStart(pageSlider.value) + 1, pdfDoc?.numPages || 1)}`;
+    });
+
+    pageSlider.addEventListener('change', () => {
+      const target = Number(pageSlider.value);
+      goToSpread(target, target > currentSpreadStart ? 'next' : 'prev');
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') goToSpread(currentSpreadStart + 2, 'next');
+      if (e.key === 'ArrowLeft') goToSpread(currentSpreadStart - 2, 'prev');
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const pdfFromQuery = params.get('pdf');
+    if (pdfFromQuery) {
+      pdfUrlInput.value = pdfFromQuery;
+      loadPdf(pdfFromQuery);
+    }
+  </script>
+</body>
+</html>
