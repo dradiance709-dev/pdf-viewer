@@ -321,7 +321,23 @@
 
     @media (max-width: 900px) {
       .page-stack {
-        width: min(44vw, 360px);
+        width: min(88vw, 420px);
+      }
+
+      .spread {
+        display: block;
+      }
+
+      .spread .page-stack + .gutter-shadow,
+      .spread .gutter-shadow,
+      .spread .page-stack:nth-of-type(2) {
+        display: none;
+      }
+
+      .page.left,
+      .page.right {
+        border-radius: 18px;
+        transform-origin: right bottom;
       }
 
       .viewer-wrap {
@@ -450,13 +466,23 @@
       return Math.min(getLastSpreadStart(), Math.max(1, normalizeSpreadStart(page)));
     }
 
+    function isMobileView() {
+      return window.matchMedia('(max-width: 900px)').matches;
+    }
+
     function updateControls() {
       if (!pdfDoc) return;
       pageSlider.max = String(getLastSpreadStart());
       pageSlider.value = String(currentSpreadStart);
       jumpInput.max = String(pdfDoc.numPages);
-      spreadInfo.textContent = `${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}`;
-      setStatus(`총 ${pdfDoc.numPages}페이지 중 ${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}페이지 표시 중`);
+      spreadInfo.textContent = isMobileView()
+        ? `${currentSpreadStart}`
+        : `${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}`;
+      setStatus(
+        isMobileView()
+          ? `총 ${pdfDoc.numPages}페이지 중 ${currentSpreadStart}페이지 표시 중`
+          : `총 ${pdfDoc.numPages}페이지 중 ${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}페이지 표시 중`
+      );
     }
 
     async function getRenderedCanvas(pageNumber) {
@@ -503,11 +529,17 @@
     async function renderSpread(startPage, mode = 'current', token = renderToken) {
       const leftTarget = mode === 'under' ? leftUnder : leftPage;
       const rightTarget = mode === 'under' ? rightUnder : rightPage;
+      const mobile = isMobileView();
 
-      await Promise.all([
-        renderPage(startPage, leftTarget),
-        renderPage(startPage + 1, rightTarget)
-      ]);
+      if (mobile) {
+        await renderPage(startPage, rightTarget);
+        clearPage(leftTarget, '');
+      } else {
+        await Promise.all([
+          renderPage(startPage, leftTarget),
+          renderPage(startPage + 1, rightTarget)
+        ]);
+      }
 
       if (token !== renderToken) return;
       if (mode === 'current') updateControls();
@@ -515,16 +547,13 @@
 
     async function preloadAround(startPage) {
       if (!pdfDoc) return;
-      const targets = [
-        startPage,
-        startPage + 1,
-        startPage + 2,
-        startPage + 3,
-        startPage - 2,
-        startPage - 1
-      ].filter((p) => p >= 1 && p <= pdfDoc.numPages);
+      const mobile = isMobileView();
+      const targets = mobile
+        ? [startPage, startPage + 1, startPage - 1]
+        : [startPage, startPage + 1, startPage + 2, startPage + 3, startPage - 2, startPage - 1];
 
-      await Promise.allSettled(targets.map((p) => getRenderedCanvas(p)));
+      const filtered = targets.filter((p) => p >= 1 && p <= pdfDoc.numPages);
+      await Promise.allSettled(filtered.map((p) => getRenderedCanvas(p)));
     }
 
     async function loadPdf(url) {
@@ -552,7 +581,11 @@
 
     async function goToSpread(targetStart, animateDirection = null) {
       if (!pdfDoc || isAnimating) return;
-      const nextStart = clampSpreadStart(targetStart);
+      const mobile = isMobileView();
+      const nextStart = mobile
+        ? Math.min(pdfDoc.numPages, Math.max(1, Number(targetStart) || 1))
+        : clampSpreadStart(targetStart);
+
       if (nextStart === currentSpreadStart) return;
 
       isAnimating = true;
@@ -561,23 +594,23 @@
       await preloadAround(nextStart);
       await renderSpread(nextStart, 'under');
 
-      const animatedEl = direction === 'next' ? rightPage : leftPage;
-      const staticEl = direction === 'next' ? leftPage : rightPage;
-      const underAnimated = direction === 'next' ? rightUnder : leftUnder;
-      const underStatic = direction === 'next' ? leftUnder : rightUnder;
+      const animatedEl = direction === 'next' ? rightPage : rightPage;
+      const staticEl = mobile ? null : (direction === 'next' ? leftPage : rightPage);
+      const underAnimated = direction === 'next' ? rightUnder : rightUnder;
+      const underStatic = mobile ? null : (direction === 'next' ? leftUnder : rightUnder);
       const className = direction === 'next' ? 'turn-next' : 'turn-prev';
 
-      // 정지해 있는 반대편 페이지는 넘김 시작 직후 바꾸면 자연스럽지만,
-      // 너무 빨리 보이면 거슬리므로 모션 중반 이후에 교체한다.
       const swapStaticDelay = Math.round(TURN_DURATION * 0.42);
+
+      if (!mobile && staticEl && underStatic) {
+        window.setTimeout(() => {
+          copyPageContent(underStatic, staticEl);
+        }, swapStaticDelay);
+      }
 
       animatedEl.classList.remove('turn-next', 'turn-prev');
       void animatedEl.offsetWidth;
       animatedEl.classList.add(className);
-
-      window.setTimeout(() => {
-        copyPageContent(underStatic, staticEl);
-      }, swapStaticDelay);
 
       window.setTimeout(() => {
         currentSpreadStart = nextStart;
@@ -585,7 +618,9 @@
         animatedEl.classList.remove('turn-next', 'turn-prev');
         updateControls();
 
-        const preloadStart = clampSpreadStart(direction === 'next' ? currentSpreadStart + 2 : currentSpreadStart - 2);
+        const preloadStart = mobile
+          ? Math.min(pdfDoc.numPages, Math.max(1, direction === 'next' ? currentSpreadStart + 1 : currentSpreadStart - 1))
+          : clampSpreadStart(direction === 'next' ? currentSpreadStart + 2 : currentSpreadStart - 2);
         renderSpread(preloadStart, 'under').finally(() => {
           isAnimating = false;
         });
@@ -602,26 +637,40 @@
     });
 
     firstBtn.addEventListener('click', () => goToSpread(1, 'prev'));
-    prevBtn.addEventListener('click', () => goToSpread(currentSpreadStart - 2, 'prev'));
-    nextBtn.addEventListener('click', () => goToSpread(currentSpreadStart + 2, 'next'));
-    lastBtn.addEventListener('click', () => goToSpread(getLastSpreadStart(), 'next'));
+    prevBtn.addEventListener('click', () => goToSpread(currentSpreadStart - (isMobileView() ? 1 : 2), 'prev'));
+    nextBtn.addEventListener('click', () => goToSpread(currentSpreadStart + (isMobileView() ? 1 : 2), 'next'));
+    lastBtn.addEventListener('click', () => goToSpread(isMobileView() ? pdfDoc.numPages : getLastSpreadStart(), 'next'));
     jumpBtn.addEventListener('click', () => goToSpread(Number(jumpInput.value), Number(jumpInput.value) > currentSpreadStart ? 'next' : 'prev'));
     jumpInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') jumpBtn.click();
     });
 
     pageSlider.addEventListener('input', () => {
-      spreadInfo.textContent = `${normalizeSpreadStart(pageSlider.value)}-${Math.min(normalizeSpreadStart(pageSlider.value) + 1, pdfDoc?.numPages || 1)}`;
+      const target = isMobileView() ? Number(pageSlider.value) : normalizeSpreadStart(pageSlider.value);
+      spreadInfo.textContent = isMobileView()
+        ? `${target}`
+        : `${target}-${Math.min(target + 1, pdfDoc?.numPages || 1)}`;
     });
 
     pageSlider.addEventListener('change', () => {
-      const target = Number(pageSlider.value);
+      const target = isMobileView() ? Number(pageSlider.value) : normalizeSpreadStart(pageSlider.value);
       goToSpread(target, target > currentSpreadStart ? 'next' : 'prev');
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowRight') goToSpread(currentSpreadStart + 2, 'next');
-      if (e.key === 'ArrowLeft') goToSpread(currentSpreadStart - 2, 'prev');
+      const step = isMobileView() ? 1 : 2;
+      if (e.key === 'ArrowRight') goToSpread(currentSpreadStart + step, 'next');
+      if (e.key === 'ArrowLeft') goToSpread(currentSpreadStart - step, 'prev');
+    });
+
+    window.addEventListener('resize', () => {
+      if (!pdfDoc || isAnimating) return;
+      renderSpread(currentSpreadStart, 'current');
+      const preloadStart = isMobileView()
+        ? Math.min(pdfDoc.numPages, currentSpreadStart + 1)
+        : Math.min(getLastSpreadStart(), currentSpreadStart + 2);
+      renderSpread(preloadStart, 'under');
+      updateControls();
     });
 
     const params = new URLSearchParams(window.location.search);
