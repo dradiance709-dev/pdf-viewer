@@ -340,6 +340,25 @@
       layer.innerHTML = label ? `<div class="placeholder">${label}</div>` : '';
     }
 
+    function copyLayerContent(fromLayer, toLayer) {
+      toLayer.innerHTML = '';
+
+      const sourceCanvas = fromLayer.querySelector('canvas');
+      if (sourceCanvas) {
+        toLayer.appendChild(cloneCanvas(sourceCanvas));
+      } else {
+        const placeholder = fromLayer.querySelector('.placeholder');
+        if (placeholder) {
+          toLayer.appendChild(placeholder.cloneNode(true));
+        }
+      }
+
+      const pageNumber = fromLayer.querySelector('.page-number');
+      if (pageNumber) {
+        toLayer.appendChild(pageNumber.cloneNode(true));
+      }
+    }
+
     function cloneCanvas(sourceCanvas) {
       const canvas = document.createElement('canvas');
       canvas.width = sourceCanvas.width;
@@ -491,7 +510,7 @@
       rightNext.style.display = 'block';
 
       if (!mobile && otherCurrent && otherIncoming) {
-        otherCurrent.innerHTML = otherIncoming.innerHTML;
+        copyLayerContent(otherIncoming, otherCurrent);
       }
 
       animatedLayer.classList.remove('turn-next', 'turn-prev');
@@ -500,8 +519,8 @@
 
       window.setTimeout(() => {
         currentStart = nextStart;
-        leftCurrent.innerHTML = leftNext.innerHTML;
-        rightCurrent.innerHTML = rightNext.innerHTML;
+        copyLayerContent(leftNext, leftCurrent);
+        copyLayerContent(rightNext, rightCurrent);
         animatedLayer.classList.remove('turn-next', 'turn-prev');
         leftNext.style.display = 'none';
         rightNext.style.display = 'none';
