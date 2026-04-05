@@ -304,6 +304,8 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
 
     const TURN_DURATION = 520;
+    const STATIC_SWAP_RATIO = 0.62;
+    const FINAL_SWAP_OFFSET = 18;
 
     const pdfUrlInput = document.getElementById('pdfUrl');
     const loadBtn = document.getElementById('loadBtn');
@@ -510,7 +512,10 @@
       rightNext.style.display = 'block';
 
       if (!mobile && otherCurrent && otherIncoming) {
-        copyLayerContent(otherIncoming, otherCurrent);
+        const staticSwapDelay = Math.round(TURN_DURATION * STATIC_SWAP_RATIO);
+        window.setTimeout(() => {
+          copyLayerContent(otherIncoming, otherCurrent);
+        }, staticSwapDelay);
       }
 
       animatedLayer.classList.remove('turn-next', 'turn-prev');
@@ -526,7 +531,7 @@
         rightNext.style.display = 'none';
         updateUi();
         isAnimating = false;
-      }, TURN_DURATION);
+      }, TURN_DURATION - FINAL_SWAP_OFFSET);
     }
 
     loadBtn.addEventListener('click', () => {
