@@ -6,50 +6,45 @@
   <title>PDF Flip Viewer</title>
   <style>
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f0f10;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
+    html, body { margin: 0; padding: 0; background: #0d0d0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { min-height: 100vh; display: flex; flex-direction: column; }
 
     .toolbar {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       align-items: center;
       padding: 12px;
-      background: #171717;
-      border-bottom: 1px solid #262626;
-      flex-wrap: wrap;
+      background: #161618;
+      border-bottom: 1px solid #252529;
     }
 
     .toolbar input,
-    .toolbar select {
-      padding: 12px 14px;
+    .toolbar button {
       border-radius: 14px;
-      border: 1px solid #393939;
-      background: #1f1f1f;
+      border: 1px solid #37373c;
+      font-size: 15px;
+    }
+
+    .toolbar input[type="text"],
+    .toolbar input[type="number"] {
+      background: #1d1d21;
       color: #fff;
+      padding: 12px 14px;
       outline: none;
     }
 
     .toolbar input[type="text"] {
       flex: 1;
-      min-width: 280px;
+      min-width: 260px;
     }
 
     .toolbar input[type="number"] {
-      width: 110px;
+      width: 96px;
     }
 
     .toolbar button {
       padding: 12px 16px;
-      border: 0;
-      border-radius: 14px;
       background: #fff;
       color: #111;
       font-weight: 700;
@@ -57,102 +52,85 @@
     }
 
     .toolbar button.secondary {
-      background: #242424;
+      background: #232328;
       color: #fff;
-      border: 1px solid #393939;
     }
 
     .status {
       padding: 10px 14px;
+      color: #c8c8cb;
+      border-bottom: 1px solid #1d1d20;
+      background: #121214;
       font-size: 14px;
-      color: #c7c7c7;
-      background: #131313;
-      border-bottom: 1px solid #1f1f1f;
     }
 
     .viewer-wrap {
       flex: 1;
       display: flex;
-      align-items: center;
       justify-content: center;
-      padding: 26px 16px 18px;
+      align-items: center;
+      padding: 24px 14px 18px;
       overflow: auto;
       background:
-        radial-gradient(circle at center, rgba(255,255,255,0.04), rgba(255,255,255,0) 42%),
-        linear-gradient(to bottom, #0d0d0e, #080809);
+        radial-gradient(circle at center, rgba(255,255,255,0.035), rgba(255,255,255,0) 42%),
+        linear-gradient(to bottom, #0b0b0c, #080809);
     }
 
     .book {
-      perspective: 2400px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      position: relative;
+      perspective: 2200px;
     }
 
     .spread {
-      position: relative;
       display: flex;
-      box-shadow: 0 24px 62px rgba(0,0,0,0.45);
-      transform-style: preserve-3d;
-      isolation: isolate;
+      position: relative;
+      gap: 0;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.48);
     }
 
-    .page-stack {
+    .page-shell {
       position: relative;
       width: min(42vw, 520px);
       aspect-ratio: 0.707 / 1;
-    }
-
-    .page {
-      position: absolute;
-      inset: 0;
       overflow: hidden;
       background: #fff;
-      border: 1px solid #d8d8d8;
+      border: 1px solid #d9d9dd;
+    }
+
+    .page-shell.left {
+      border-radius: 18px 0 0 18px;
+    }
+
+    .page-shell.right {
+      border-radius: 0 18px 18px 0;
+    }
+
+    .page-layer {
+      position: absolute;
+      inset: 0;
+      background: #fff;
       backface-visibility: hidden;
       transform-style: preserve-3d;
-      will-change: transform, filter, opacity;
+      will-change: transform, opacity, filter;
     }
 
-    .page.left {
-      border-radius: 18px 0 0 18px;
-      transform-origin: right bottom;
-    }
-
-    .page.right {
-      border-radius: 0 18px 18px 0;
-      transform-origin: left bottom;
-    }
-
-    .page.under {
-      z-index: 1;
-      background: #fcfcfc;
-      opacity: 1;
-    }
-
-    .page.current {
-      z-index: 3;
-      opacity: 1;
-    }
-
-    .gutter-shadow {
-      position: absolute;
-      left: 50%;
-      top: 0;
-      width: 8px;
-      height: 100%;
-      transform: translateX(-50%);
-      z-index: 5;
-      pointer-events: none;
-      background: linear-gradient(to right, rgba(0,0,0,0.05), rgba(0,0,0,0.015), rgba(0,0,0,0.05));
-      opacity: 0.9;
-    }
-
-    .page canvas {
+    .page-layer canvas {
       width: 100%;
       height: 100%;
       display: block;
       background: #fff;
+    }
+
+    .placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+      background:
+        linear-gradient(135deg, #f6f6f6 25%, #fbfbfb 25%, #fbfbfb 50%, #f6f6f6 50%, #f6f6f6 75%, #fbfbfb 75%, #fbfbfb 100%);
+      background-size: 22px 22px;
     }
 
     .page-number {
@@ -160,126 +138,64 @@
       bottom: 10px;
       font-size: 12px;
       color: #666;
-      background: rgba(255,255,255,0.84);
-      padding: 4px 8px;
+      background: rgba(255,255,255,0.86);
       border-radius: 999px;
-      z-index: 8;
+      padding: 4px 8px;
     }
 
     .left .page-number { left: 10px; }
     .right .page-number { right: 10px; }
 
-    .placeholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
+    .gutter {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 6px;
       height: 100%;
-      color: #888;
-      font-size: 14px;
-      background:
-        linear-gradient(135deg, #f7f7f7 25%, #fbfbfb 25%, #fbfbfb 50%, #f7f7f7 50%, #f7f7f7 75%, #fbfbfb 75%, #fbfbfb 100%);
-      background-size: 24px 24px;
+      transform: translateX(-50%);
+      background: linear-gradient(to right, rgba(0,0,0,0.04), rgba(0,0,0,0.012), rgba(0,0,0,0.04));
+      pointer-events: none;
+      z-index: 30;
     }
 
-    .page.turn-next,
-    .page.turn-prev {
-      z-index: 12;
+    .turn-next {
+      transform-origin: left bottom;
+      animation: turnNext 0.52s cubic-bezier(0.22, 0.78, 0.22, 1) forwards;
+      z-index: 20;
     }
 
-    .page.turn-next::before,
-    .page.turn-prev::before {
+    .turn-prev {
+      transform-origin: right bottom;
+      animation: turnPrev 0.52s cubic-bezier(0.22, 0.78, 0.22, 1) forwards;
+      z-index: 20;
+    }
+
+    .turn-next::after,
+    .turn-prev::after {
       content: "";
       position: absolute;
       inset: 0;
       pointer-events: none;
-      z-index: 4;
     }
 
-    .page.turn-next::after,
-    .page.turn-prev::after {
-      content: "";
-      position: absolute;
-      bottom: -2%;
-      width: 42%;
-      height: 34%;
-      pointer-events: none;
-      filter: blur(10px);
-      z-index: 2;
+    .turn-next::after {
+      background: linear-gradient(to left, rgba(0,0,0,0.12), rgba(255,255,255,0.04) 35%, rgba(255,255,255,0) 58%);
     }
 
-    .page.turn-next {
-      animation: turnNext 0.5s cubic-bezier(0.22, 0.78, 0.22, 1) forwards;
-    }
-
-    .page.turn-next::before {
-      background:
-        radial-gradient(circle at 100% 100%, rgba(255,255,255,0.14) 0 11%, rgba(255,255,255,0) 21%),
-        linear-gradient(to left, rgba(0,0,0,0.10), rgba(0,0,0,0.01) 15%, rgba(255,255,255,0.08) 34%, rgba(255,255,255,0) 54%);
-      clip-path: polygon(100% 100%, 84% 100%, 100% 84%);
-      animation: curlRight 0.5s ease forwards;
-    }
-
-    .page.turn-next::after {
-      right: -7%;
-      background: radial-gradient(circle at 80% 82%, rgba(0,0,0,0.22), rgba(0,0,0,0.04) 56%, rgba(0,0,0,0) 72%);
-      animation: shadowRight 0.5s ease forwards;
-    }
-
-    .page.turn-prev {
-      animation: turnPrev 0.5s cubic-bezier(0.22, 0.78, 0.22, 1) forwards;
-    }
-
-    .page.turn-prev::before {
-      background:
-        radial-gradient(circle at 0% 100%, rgba(255,255,255,0.14) 0 11%, rgba(255,255,255,0) 21%),
-        linear-gradient(to right, rgba(0,0,0,0.10), rgba(0,0,0,0.01) 15%, rgba(255,255,255,0.08) 34%, rgba(255,255,255,0) 54%);
-      clip-path: polygon(0 100%, 16% 100%, 0 84%);
-      animation: curlLeft 0.5s ease forwards;
-    }
-
-    .page.turn-prev::after {
-      left: -7%;
-      background: radial-gradient(circle at 20% 82%, rgba(0,0,0,0.22), rgba(0,0,0,0.04) 56%, rgba(0,0,0,0) 72%);
-      animation: shadowLeft 0.5s ease forwards;
+    .turn-prev::after {
+      background: linear-gradient(to right, rgba(0,0,0,0.12), rgba(255,255,255,0.04) 35%, rgba(255,255,255,0) 58%);
     }
 
     @keyframes turnNext {
-      0% { transform: rotateY(0deg) skewY(0deg); filter: brightness(1); }
-      25% { transform: rotateY(-16deg) skewY(0.7deg); filter: brightness(0.995); }
-      60% { transform: rotateY(-92deg) skewY(0.6deg); filter: brightness(0.965); }
-      100% { transform: rotateY(-168deg) skewY(0deg); filter: brightness(0.92); }
+      0% { transform: rotateY(0deg); filter: brightness(1); }
+      35% { transform: rotateY(-28deg); filter: brightness(0.985); }
+      100% { transform: rotateY(-178deg); filter: brightness(0.92); }
     }
 
     @keyframes turnPrev {
-      0% { transform: rotateY(0deg) skewY(0deg); filter: brightness(1); }
-      25% { transform: rotateY(16deg) skewY(-0.7deg); filter: brightness(0.995); }
-      60% { transform: rotateY(92deg) skewY(-0.6deg); filter: brightness(0.965); }
-      100% { transform: rotateY(168deg) skewY(0deg); filter: brightness(0.92); }
-    }
-
-    @keyframes curlRight {
-      0% { clip-path: polygon(100% 100%, 88% 100%, 100% 88%); opacity: 0.08; }
-      55% { clip-path: polygon(100% 100%, 56% 100%, 100% 50%); opacity: 0.22; }
-      100% { clip-path: polygon(100% 100%, 20% 100%, 100% 20%); opacity: 0.16; }
-    }
-
-    @keyframes curlLeft {
-      0% { clip-path: polygon(0 100%, 12% 100%, 0 88%); opacity: 0.08; }
-      55% { clip-path: polygon(0 100%, 44% 100%, 0 50%); opacity: 0.22; }
-      100% { clip-path: polygon(0 100%, 80% 100%, 0 20%); opacity: 0.16; }
-    }
-
-    @keyframes shadowRight {
-      0% { transform: translate(0, 0) scale(0.78); opacity: 0.10; }
-      50% { transform: translate(-16%, -10%) scale(1); opacity: 0.26; }
-      100% { transform: translate(-26%, -14%) scale(1.06); opacity: 0.08; }
-    }
-
-    @keyframes shadowLeft {
-      0% { transform: translate(0, 0) scale(0.78); opacity: 0.10; }
-      50% { transform: translate(16%, -10%) scale(1); opacity: 0.26; }
-      100% { transform: translate(26%, -14%) scale(1.06); opacity: 0.08; }
+      0% { transform: rotateY(0deg); filter: brightness(1); }
+      35% { transform: rotateY(28deg); filter: brightness(0.985); }
+      100% { transform: rotateY(178deg); filter: brightness(0.92); }
     }
 
     .nav-bar {
@@ -287,14 +203,14 @@
       align-items: center;
       gap: 12px;
       padding: 12px 14px 16px;
-      background: #101010;
-      border-top: 1px solid #1f1f1f;
+      background: #101012;
+      border-top: 1px solid #1d1d20;
       flex-wrap: wrap;
     }
 
     .range-wrap {
       flex: 1;
-      min-width: 240px;
+      min-width: 220px;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -313,46 +229,39 @@
 
     .hint {
       text-align: center;
-      padding: 10px 12px 14px;
-      color: #8f8f8f;
+      color: #8f8f94;
+      padding: 0 14px 16px;
+      background: #101012;
       font-size: 13px;
-      background: #101010;
     }
 
     @media (max-width: 900px) {
-      .page-stack {
-        width: min(88vw, 420px);
-      }
-
       .spread {
         display: block;
       }
 
-      .spread .page-stack + .gutter-shadow,
-      .spread .gutter-shadow,
-      .spread .page-stack:nth-of-type(2) {
+      .page-shell {
+        width: min(88vw, 440px);
+      }
+
+      .page-shell.left,
+      .gutter {
         display: none;
       }
 
-      .page.left,
-      .page.right {
+      .page-shell.right {
         border-radius: 18px;
-        transform-origin: right bottom;
       }
 
       .viewer-wrap {
         padding: 16px 8px 12px;
-      }
-
-      .toolbar {
-        gap: 8px;
       }
     }
   </style>
 </head>
 <body>
   <div class="toolbar">
-    <input id="pdfUrl" type="text" placeholder="PDF 링크를 입력하세요" value="sample1.pdf" />
+    <input id="pdfUrl" type="text" placeholder="PDF 링크를 입력하세요" value="sample4.pdf" />
     <button id="loadBtn">불러오기</button>
     <button id="firstBtn" class="secondary">처음</button>
     <button id="prevBtn" class="secondary">이전</button>
@@ -365,18 +274,16 @@
   <div class="status" id="status">PDF 링크를 넣고 불러오기를 누르세요.</div>
 
   <div class="viewer-wrap">
-    <div>
-      <div class="book">
-        <div class="spread" id="spread">
-          <div class="page-stack">
-            <div class="page under left" id="leftUnder"><div class="placeholder">왼쪽 페이지</div></div>
-            <div class="page current left" id="leftPage"><div class="placeholder">왼쪽 페이지</div></div>
-          </div>
-          <div class="gutter-shadow"></div>
-          <div class="page-stack">
-            <div class="page under right" id="rightUnder"><div class="placeholder">오른쪽 페이지</div></div>
-            <div class="page current right" id="rightPage"><div class="placeholder">오른쪽 페이지</div></div>
-          </div>
+    <div class="book">
+      <div class="spread">
+        <div class="page-shell left" id="leftShell">
+          <div class="page-layer" id="leftCurrent"><div class="placeholder">왼쪽 페이지</div></div>
+          <div class="page-layer" id="leftNext" style="display:none"></div>
+        </div>
+        <div class="gutter"></div>
+        <div class="page-shell right" id="rightShell">
+          <div class="page-layer" id="rightCurrent"><div class="placeholder">오른쪽 페이지</div></div>
+          <div class="page-layer" id="rightNext" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -385,17 +292,18 @@
   <div class="nav-bar">
     <div class="range-wrap">
       <span class="mini-info">빠른 이동</span>
-      <input id="pageSlider" type="range" min="1" max="1" step="2" value="1" />
-      <span class="mini-info" id="spreadInfo">1-2</span>
+      <input id="pageSlider" type="range" min="1" max="1" step="1" value="1" />
+      <span class="mini-info" id="spreadInfo">1</span>
     </div>
   </div>
 
-  <div class="hint">좌우 두 페이지 보기, 페이지 입력 이동, 아래 슬라이더 빠른 이동을 지원합니다.</div>
+  <div class="hint">데스크톱은 양면, 모바일은 한 페이지 보기로 동작합니다.</div>
 
   <script type="module">
     import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs';
-
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+
+    const TURN_DURATION = 520;
 
     const pdfUrlInput = document.getElementById('pdfUrl');
     const loadBtn = document.getElementById('loadBtn');
@@ -407,224 +315,199 @@
     const jumpBtn = document.getElementById('jumpBtn');
     const pageSlider = document.getElementById('pageSlider');
     const spreadInfo = document.getElementById('spreadInfo');
-
-    const leftPage = document.getElementById('leftPage');
-    const rightPage = document.getElementById('rightPage');
-    const leftUnder = document.getElementById('leftUnder');
-    const rightUnder = document.getElementById('rightUnder');
     const status = document.getElementById('status');
 
+    const leftCurrent = document.getElementById('leftCurrent');
+    const leftNext = document.getElementById('leftNext');
+    const rightCurrent = document.getElementById('rightCurrent');
+    const rightNext = document.getElementById('rightNext');
+
     let pdfDoc = null;
-    let currentSpreadStart = 1;
+    let currentStart = 1;
     let isAnimating = false;
     let renderToken = 0;
-    const TURN_DURATION = 500;
-    const pageCache = new Map();
+    const cache = new Map();
+
+    function isMobile() {
+      return window.matchMedia('(max-width: 900px)').matches;
+    }
 
     function setStatus(text) {
       status.textContent = text;
     }
 
-    function clearPage(el, label) {
-      el.innerHTML = `<div class="placeholder">${label}</div>`;
+    function clearLayer(layer, label) {
+      layer.innerHTML = label ? `<div class="placeholder">${label}</div>` : '';
     }
 
-    function copyPageContent(fromEl, toEl) {
-      toEl.innerHTML = '';
-
-      const sourceCanvas = fromEl.querySelector('canvas');
-      if (sourceCanvas) {
-        const copiedCanvas = document.createElement('canvas');
-        copiedCanvas.width = sourceCanvas.width;
-        copiedCanvas.height = sourceCanvas.height;
-        copiedCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
-        toEl.appendChild(copiedCanvas);
-      } else {
-        const placeholder = fromEl.querySelector('.placeholder');
-        if (placeholder) {
-          toEl.appendChild(placeholder.cloneNode(true));
-        }
-      }
-
-      const pageNumber = fromEl.querySelector('.page-number');
-      if (pageNumber) {
-        toEl.appendChild(pageNumber.cloneNode(true));
-      }
-    }
-
-    function normalizeSpreadStart(page) {
-      const n = Math.max(1, Number(page) || 1);
-      return n % 2 === 0 ? n - 1 : n;
-    }
-
-    function getLastSpreadStart() {
-      if (!pdfDoc) return 1;
-      return pdfDoc.numPages % 2 === 0 ? pdfDoc.numPages - 1 : pdfDoc.numPages;
-    }
-
-    function clampSpreadStart(page) {
-      return Math.min(getLastSpreadStart(), Math.max(1, normalizeSpreadStart(page)));
-    }
-
-    function isMobileView() {
-      return window.matchMedia('(max-width: 900px)').matches;
-    }
-
-    function updateControls() {
-      if (!pdfDoc) return;
-      pageSlider.max = String(getLastSpreadStart());
-      pageSlider.value = String(currentSpreadStart);
-      jumpInput.max = String(pdfDoc.numPages);
-      spreadInfo.textContent = isMobileView()
-        ? `${currentSpreadStart}`
-        : `${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}`;
-      setStatus(
-        isMobileView()
-          ? `총 ${pdfDoc.numPages}페이지 중 ${currentSpreadStart}페이지 표시 중`
-          : `총 ${pdfDoc.numPages}페이지 중 ${currentSpreadStart}-${Math.min(currentSpreadStart + 1, pdfDoc.numPages)}페이지 표시 중`
-      );
-    }
-
-    async function getRenderedCanvas(pageNumber) {
-      if (!pdfDoc || pageNumber < 1 || pageNumber > pdfDoc.numPages) return null;
-      if (pageCache.has(pageNumber)) return pageCache.get(pageNumber);
-
-      const page = await pdfDoc.getPage(pageNumber);
-      const baseViewport = page.getViewport({ scale: 1 });
-      const targetWidth = 1000;
-      const scale = targetWidth / baseViewport.width;
-      const viewport = page.getViewport({ scale });
-
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      await page.render({ canvasContext: context, viewport }).promise;
-      pageCache.set(pageNumber, canvas);
-      return canvas;
-    }
-
-    async function renderPage(pageNumber, container) {
-      if (!pdfDoc || pageNumber < 1 || pageNumber > pdfDoc.numPages) {
-        clearPage(container, '빈 페이지');
-        return;
-      }
-
-      const sourceCanvas = await getRenderedCanvas(pageNumber);
+    function cloneCanvas(sourceCanvas) {
       const canvas = document.createElement('canvas');
       canvas.width = sourceCanvas.width;
       canvas.height = sourceCanvas.height;
       canvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
+      return canvas;
+    }
 
-      container.innerHTML = '';
-      container.appendChild(canvas);
-
+    function fillLayer(layer, sourceCanvas, pageNumber, side) {
+      layer.innerHTML = '';
+      if (!sourceCanvas) {
+        clearLayer(layer, '빈 페이지');
+        return;
+      }
+      layer.appendChild(cloneCanvas(sourceCanvas));
       const pageNumberEl = document.createElement('div');
       pageNumberEl.className = 'page-number';
-      pageNumberEl.textContent = `${pageNumber}`;
-      container.appendChild(pageNumberEl);
+      pageNumberEl.textContent = String(pageNumber);
+      layer.classList.remove('left', 'right');
+      layer.classList.add(side);
+      layer.appendChild(pageNumberEl);
     }
 
-    async function renderSpread(startPage, mode = 'current', token = renderToken) {
-      const leftTarget = mode === 'under' ? leftUnder : leftPage;
-      const rightTarget = mode === 'under' ? rightUnder : rightPage;
-      const mobile = isMobileView();
+    function normalizeStart(page) {
+      const n = Math.max(1, Number(page) || 1);
+      if (isMobile()) return n;
+      return n % 2 === 0 ? n - 1 : n;
+    }
 
-      if (mobile) {
-        await renderPage(startPage, rightTarget);
-        clearPage(leftTarget, '');
+    function getLastStart() {
+      if (!pdfDoc) return 1;
+      if (isMobile()) return pdfDoc.numPages;
+      return pdfDoc.numPages % 2 === 0 ? pdfDoc.numPages - 1 : pdfDoc.numPages;
+    }
+
+    function clampStart(page) {
+      return Math.min(getLastStart(), Math.max(1, normalizeStart(page)));
+    }
+
+    function getStep() {
+      return isMobile() ? 1 : 2;
+    }
+
+    async function getPageCanvas(pageNumber) {
+      if (!pdfDoc || pageNumber < 1 || pageNumber > pdfDoc.numPages) return null;
+      const key = `${isMobile() ? 'm' : 'd'}-${pageNumber}`;
+      if (cache.has(key)) return cache.get(key);
+
+      const page = await pdfDoc.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const targetWidth = isMobile() ? 1400 : 1100;
+      const scale = targetWidth / baseViewport.width;
+      const viewport = page.getViewport({ scale });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      cache.set(key, canvas);
+      return canvas;
+    }
+
+    async function renderIntoLayers(start, leftLayer, rightLayer) {
+      if (isMobile()) {
+        const canvas = await getPageCanvas(start);
+        clearLayer(leftLayer, '');
+        fillLayer(rightLayer, canvas, start, 'right');
       } else {
-        await Promise.all([
-          renderPage(startPage, leftTarget),
-          renderPage(startPage + 1, rightTarget)
+        const [leftCanvas, rightCanvas] = await Promise.all([
+          getPageCanvas(start),
+          getPageCanvas(start + 1)
         ]);
+        fillLayer(leftLayer, leftCanvas, start, 'left');
+        fillLayer(rightLayer, rightCanvas, start + 1, 'right');
       }
-
-      if (token !== renderToken) return;
-      if (mode === 'current') updateControls();
     }
 
-    async function preloadAround(startPage) {
+    async function preloadAround(start) {
       if (!pdfDoc) return;
-      const mobile = isMobileView();
-      const targets = mobile
-        ? [startPage, startPage + 1, startPage - 1]
-        : [startPage, startPage + 1, startPage + 2, startPage + 3, startPage - 2, startPage - 1];
+      const step = getStep();
+      const pages = isMobile()
+        ? [start, start + 1, start - 1]
+        : [start, start + 1, start + 2, start + 3, start - 2, start - 1];
+      await Promise.allSettled(
+        pages.filter((p) => p >= 1 && p <= pdfDoc.numPages).map((p) => getPageCanvas(p))
+      );
+    }
 
-      const filtered = targets.filter((p) => p >= 1 && p <= pdfDoc.numPages);
-      await Promise.allSettled(filtered.map((p) => getRenderedCanvas(p)));
+    function updateUi() {
+      if (!pdfDoc) return;
+      pageSlider.max = String(getLastStart());
+      pageSlider.step = String(getStep());
+      pageSlider.value = String(currentStart);
+      jumpInput.max = String(pdfDoc.numPages);
+
+      if (isMobile()) {
+        setStatus(`총 ${pdfDoc.numPages}페이지 중 ${currentStart}페이지 표시 중`);
+        spreadInfo.textContent = String(currentStart);
+      } else {
+        setStatus(`총 ${pdfDoc.numPages}페이지 중 ${currentStart}-${Math.min(currentStart + 1, pdfDoc.numPages)}페이지 표시 중`);
+        spreadInfo.textContent = `${currentStart}-${Math.min(currentStart + 1, pdfDoc.numPages)}`;
+      }
+    }
+
+    async function showStart(start) {
+      await renderIntoLayers(start, leftCurrent, rightCurrent);
+      updateUi();
     }
 
     async function loadPdf(url) {
       try {
         renderToken += 1;
         const myToken = renderToken;
-        pageCache.clear();
+        cache.clear();
         setStatus('PDF 불러오는 중...');
         const loadingTask = pdfjsLib.getDocument(url);
         pdfDoc = await loadingTask.promise;
-        currentSpreadStart = 1;
-        await preloadAround(currentSpreadStart);
+        currentStart = 1;
+        await preloadAround(currentStart);
         if (myToken !== renderToken) return;
-        await renderSpread(currentSpreadStart, 'current', myToken);
-        await renderSpread(Math.min(currentSpreadStart + 2, getLastSpreadStart()), 'under', myToken);
-      } catch (error) {
-        console.error(error);
+        await showStart(currentStart);
+      } catch (err) {
+        console.error(err);
         setStatus('PDF를 불러오지 못했습니다. 링크나 파일 경로를 다시 확인해주세요.');
-        clearPage(leftPage, '로드 실패');
-        clearPage(rightPage, '로드 실패');
-        clearPage(leftUnder, '로드 실패');
-        clearPage(rightUnder, '로드 실패');
+        clearLayer(leftCurrent, '로드 실패');
+        clearLayer(rightCurrent, '로드 실패');
       }
     }
 
-    async function goToSpread(targetStart, animateDirection = null) {
+    async function goTo(target, directionHint = null) {
       if (!pdfDoc || isAnimating) return;
-      const mobile = isMobileView();
-      const nextStart = mobile
-        ? Math.min(pdfDoc.numPages, Math.max(1, Number(targetStart) || 1))
-        : clampSpreadStart(targetStart);
+      const nextStart = clampStart(target);
+      if (nextStart === currentStart) return;
 
-      if (nextStart === currentSpreadStart) return;
-
+      const direction = directionHint || (nextStart > currentStart ? 'next' : 'prev');
       isAnimating = true;
-      const direction = animateDirection || (nextStart > currentSpreadStart ? 'next' : 'prev');
 
       await preloadAround(nextStart);
-      await renderSpread(nextStart, 'under');
+      await renderIntoLayers(nextStart, leftNext, rightNext);
 
-      const animatedEl = direction === 'next' ? rightPage : rightPage;
-      const staticEl = mobile ? null : (direction === 'next' ? leftPage : rightPage);
-      const underAnimated = direction === 'next' ? rightUnder : rightUnder;
-      const underStatic = mobile ? null : (direction === 'next' ? leftUnder : rightUnder);
-      const className = direction === 'next' ? 'turn-next' : 'turn-prev';
+      const mobile = isMobile();
+      const animatedLayer = mobile ? rightCurrent : (direction === 'next' ? rightCurrent : leftCurrent);
+      const incomingLayer = mobile ? rightNext : (direction === 'next' ? rightNext : leftNext);
+      const otherCurrent = mobile ? null : (direction === 'next' ? leftCurrent : rightCurrent);
+      const otherIncoming = mobile ? null : (direction === 'next' ? leftNext : rightNext);
 
-      const swapStaticDelay = Math.round(TURN_DURATION * 0.42);
+      leftNext.style.display = mobile ? 'none' : 'block';
+      rightNext.style.display = 'block';
 
-      if (!mobile && staticEl && underStatic) {
-        window.setTimeout(() => {
-          copyPageContent(underStatic, staticEl);
-        }, swapStaticDelay);
+      if (!mobile && otherCurrent && otherIncoming) {
+        otherCurrent.innerHTML = otherIncoming.innerHTML;
       }
 
-      animatedEl.classList.remove('turn-next', 'turn-prev');
-      void animatedEl.offsetWidth;
-      animatedEl.classList.add(className);
+      animatedLayer.classList.remove('turn-next', 'turn-prev');
+      void animatedLayer.offsetWidth;
+      animatedLayer.classList.add(direction === 'next' ? 'turn-next' : 'turn-prev');
 
       window.setTimeout(() => {
-        currentSpreadStart = nextStart;
-        copyPageContent(underAnimated, animatedEl);
-        animatedEl.classList.remove('turn-next', 'turn-prev');
-        updateControls();
-
-        const preloadStart = mobile
-          ? Math.min(pdfDoc.numPages, Math.max(1, direction === 'next' ? currentSpreadStart + 1 : currentSpreadStart - 1))
-          : clampSpreadStart(direction === 'next' ? currentSpreadStart + 2 : currentSpreadStart - 2);
-        renderSpread(preloadStart, 'under').finally(() => {
-          isAnimating = false;
-        });
-      }, TURN_DURATION - 12);
+        currentStart = nextStart;
+        leftCurrent.innerHTML = leftNext.innerHTML;
+        rightCurrent.innerHTML = rightNext.innerHTML;
+        animatedLayer.classList.remove('turn-next', 'turn-prev');
+        leftNext.style.display = 'none';
+        rightNext.style.display = 'none';
+        updateUi();
+        isAnimating = false;
+      }, TURN_DURATION);
     }
 
     loadBtn.addEventListener('click', () => {
@@ -636,41 +519,45 @@
       loadPdf(url);
     });
 
-    firstBtn.addEventListener('click', () => goToSpread(1, 'prev'));
-    prevBtn.addEventListener('click', () => goToSpread(currentSpreadStart - (isMobileView() ? 1 : 2), 'prev'));
-    nextBtn.addEventListener('click', () => goToSpread(currentSpreadStart + (isMobileView() ? 1 : 2), 'next'));
-    lastBtn.addEventListener('click', () => goToSpread(isMobileView() ? pdfDoc.numPages : getLastSpreadStart(), 'next'));
-    jumpBtn.addEventListener('click', () => goToSpread(Number(jumpInput.value), Number(jumpInput.value) > currentSpreadStart ? 'next' : 'prev'));
+    firstBtn.addEventListener('click', () => goTo(1, 'prev'));
+    prevBtn.addEventListener('click', () => goTo(currentStart - getStep(), 'prev'));
+    nextBtn.addEventListener('click', () => goTo(currentStart + getStep(), 'next'));
+    lastBtn.addEventListener('click', () => goTo(getLastStart(), 'next'));
+    jumpBtn.addEventListener('click', () => goTo(Number(jumpInput.value), Number(jumpInput.value) > currentStart ? 'next' : 'prev'));
     jumpInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') jumpBtn.click();
     });
 
     pageSlider.addEventListener('input', () => {
-      const target = isMobileView() ? Number(pageSlider.value) : normalizeSpreadStart(pageSlider.value);
-      spreadInfo.textContent = isMobileView()
-        ? `${target}`
-        : `${target}-${Math.min(target + 1, pdfDoc?.numPages || 1)}`;
+      const value = Number(pageSlider.value);
+      if (isMobile()) {
+        spreadInfo.textContent = String(value);
+      } else {
+        const start = normalizeStart(value);
+        spreadInfo.textContent = `${start}-${Math.min(start + 1, pdfDoc?.numPages || 1)}`;
+      }
     });
 
     pageSlider.addEventListener('change', () => {
-      const target = isMobileView() ? Number(pageSlider.value) : normalizeSpreadStart(pageSlider.value);
-      goToSpread(target, target > currentSpreadStart ? 'next' : 'prev');
+      const value = Number(pageSlider.value);
+      goTo(value, value > currentStart ? 'next' : 'prev');
     });
 
     document.addEventListener('keydown', (e) => {
-      const step = isMobileView() ? 1 : 2;
-      if (e.key === 'ArrowRight') goToSpread(currentSpreadStart + step, 'next');
-      if (e.key === 'ArrowLeft') goToSpread(currentSpreadStart - step, 'prev');
+      if (e.key === 'ArrowRight') goTo(currentStart + getStep(), 'next');
+      if (e.key === 'ArrowLeft') goTo(currentStart - getStep(), 'prev');
     });
 
+    let resizeTimer = null;
     window.addEventListener('resize', () => {
-      if (!pdfDoc || isAnimating) return;
-      renderSpread(currentSpreadStart, 'current');
-      const preloadStart = isMobileView()
-        ? Math.min(pdfDoc.numPages, currentSpreadStart + 1)
-        : Math.min(getLastSpreadStart(), currentSpreadStart + 2);
-      renderSpread(preloadStart, 'under');
-      updateControls();
+      if (!pdfDoc) return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(async () => {
+        cache.clear();
+        currentStart = clampStart(currentStart);
+        await preloadAround(currentStart);
+        await showStart(currentStart);
+      }, 120);
     });
 
     const params = new URLSearchParams(window.location.search);
