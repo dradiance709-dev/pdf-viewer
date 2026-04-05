@@ -567,14 +567,17 @@
       const underStatic = direction === 'next' ? leftUnder : rightUnder;
       const className = direction === 'next' ? 'turn-next' : 'turn-prev';
 
-      // 넘김 시작 직전에 실제 다음 페이지를 현재 레이어 아래에 깔아두고,
-      // 현재 페이지는 애니메이션이 끝날 때까지 그대로 유지한다.
-      // 애니메이션 종료 직전 교체가 아니라 시작 시점부터 스왑 기반으로 진행해서 끊김을 줄인다.
-      copyPageContent(underStatic, staticEl);
+      // 정지해 있는 반대편 페이지는 넘김 시작 직후 바꾸면 자연스럽지만,
+      // 너무 빨리 보이면 거슬리므로 모션 중반 이후에 교체한다.
+      const swapStaticDelay = Math.round(TURN_DURATION * 0.42);
 
       animatedEl.classList.remove('turn-next', 'turn-prev');
       void animatedEl.offsetWidth;
       animatedEl.classList.add(className);
+
+      window.setTimeout(() => {
+        copyPageContent(underStatic, staticEl);
+      }, swapStaticDelay);
 
       window.setTimeout(() => {
         currentSpreadStart = nextStart;
@@ -586,7 +589,7 @@
         renderSpread(preloadStart, 'under').finally(() => {
           isAnimating = false;
         });
-      }, TURN_DURATION - 8);
+      }, TURN_DURATION - 12);
     }
 
     loadBtn.addEventListener('click', () => {
