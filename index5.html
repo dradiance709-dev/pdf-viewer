@@ -413,6 +413,29 @@
       el.innerHTML = `<div class="placeholder">${label}</div>`;
     }
 
+    function copyPageContent(fromEl, toEl) {
+      toEl.innerHTML = '';
+
+      const sourceCanvas = fromEl.querySelector('canvas');
+      if (sourceCanvas) {
+        const copiedCanvas = document.createElement('canvas');
+        copiedCanvas.width = sourceCanvas.width;
+        copiedCanvas.height = sourceCanvas.height;
+        copiedCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
+        toEl.appendChild(copiedCanvas);
+      } else {
+        const placeholder = fromEl.querySelector('.placeholder');
+        if (placeholder) {
+          toEl.appendChild(placeholder.cloneNode(true));
+        }
+      }
+
+      const pageNumber = fromEl.querySelector('.page-number');
+      if (pageNumber) {
+        toEl.appendChild(pageNumber.cloneNode(true));
+      }
+    }
+
     function normalizeSpreadStart(page) {
       const n = Math.max(1, Number(page) || 1);
       return n % 2 === 0 ? n - 1 : n;
@@ -545,8 +568,8 @@
 
       window.setTimeout(() => {
         currentSpreadStart = nextStart;
-        leftPage.innerHTML = leftUnder.innerHTML;
-        rightPage.innerHTML = rightUnder.innerHTML;
+        copyPageContent(leftUnder, leftPage);
+        copyPageContent(rightUnder, rightPage);
         animatedEl.classList.remove('turn-next', 'turn-prev');
         updateControls();
         const preloadStart = clampSpreadStart(direction === 'next' ? currentSpreadStart + 2 : currentSpreadStart - 2);
