@@ -538,7 +538,6 @@
       animatedLayer.classList.add(direction === 'next' ? 'turn-next' : 'turn-prev');
 
       const finishTurn = () => {
-        animatedLayer.removeEventListener('animationend', finishTurn);
         currentStart = nextStart;
 
         if (mobile) {
@@ -555,7 +554,7 @@
         isAnimating = false;
       };
 
-      animatedLayer.addEventListener('animationend', finishTurn, { once: true });
+      window.setTimeout(finishTurn, Math.round(TURN_DURATION * 0.78));
     }
 
     loadBtn.addEventListener('click', () => {
