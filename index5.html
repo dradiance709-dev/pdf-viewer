@@ -511,12 +511,8 @@
       leftNext.style.display = mobile ? 'none' : 'block';
       rightNext.style.display = 'block';
 
-      if (!mobile && otherCurrent && otherIncoming) {
-        const staticSwapDelay = Math.round(TURN_DURATION * STATIC_SWAP_RATIO);
-        window.setTimeout(() => {
-          copyLayerContent(otherIncoming, otherCurrent);
-        }, staticSwapDelay);
-      }
+      // 정지해 있는 반대편 페이지는 넘김 도중에는 유지하고,
+      // 애니메이션이 끝나는 시점에만 교체한다.
 
       animatedLayer.classList.remove('turn-next', 'turn-prev');
       void animatedLayer.offsetWidth;
@@ -524,6 +520,9 @@
 
       window.setTimeout(() => {
         currentStart = nextStart;
+        if (!mobile && otherCurrent && otherIncoming) {
+          copyLayerContent(otherIncoming, otherCurrent);
+        }
         copyLayerContent(leftNext, leftCurrent);
         copyLayerContent(rightNext, rightCurrent);
         animatedLayer.classList.remove('turn-next', 'turn-prev');
