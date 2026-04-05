@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Flip Viewer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f0f10;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      background: #171717;
+      border-bottom: 1px solid #2a2a2a;
+      flex-wrap: wrap;
+    }
+
+    .toolbar input {
+      flex: 1;
+      min-width: 280px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid #3a3a3a;
+      background: #1f1f1f;
+      color: #fff;
+      outline: none;
+    }
+
+    .toolbar button {
+      padding: 12px 16px;
+      border: 0;
+      border-radius: 14px;
+      background: #fff;
+      color: #111;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .toolbar button.secondary {
+      background: #242424;
+      color: #fff;
+      border: 1px solid #3a3a3a;
+    }
+
+    .status {
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #c2c2c2;
+      background: #131313;
+      border-bottom: 1px solid #222;
+    }
+
+    .viewer-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 20px 34px;
+      overflow: auto;
+      background:
+        radial-gradient(circle at center, rgba(255,255,255,0.05), rgba(255,255,255,0) 42%),
+        linear-gradient(to bottom, #0d0d0e, #080809);
+    }
+
+    .book {
+      perspective: 2600px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .spread {
+      position: relative;
+      display: flex;
+      box-shadow: 0 26px 70px rgba(0,0,0,0.5);
+      transform-style: preserve-3d;
+      isolation: isolate;
+    }
+
+    .page-stack {
+      position: relative;
+      width: min(42vw, 520px);
+      aspect-ratio: 0.707 / 1;
+    }
+
+    .page {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: white;
+      border: 1px solid #d2d2d2;
+      backface-visibility: hidden;
+      transform-style: preserve-3d;
+    }
+
+    .page.left {
+      border-radius: 18px 0 0 18px;
+      transform-origin: right bottom;
+    }
+
+    .page.right {
+      border-radius: 0 18px 18px 0;
+      transform-origin: left bottom;
+    }
+
+    .page.under {
+      z-index: 1;
+      background: #fbfbfb;
+    }
+
+    .page.current {
+      z-index: 3;
+    }
+
+    .gutter-shadow {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 26px;
+      height: 100%;
+      transform: translateX(-50%);
+      z-index: 5;
+      pointer-events: none;
+      background: linear-gradient(to right, rgba(0,0,0,0.18), rgba(0,0,0,0.02), rgba(0,0,0,0.18));
+    }
+
+    .page canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
+    }
+
+    .page-number {
+      position: absolute;
+      bottom: 10px;
+      font-size: 12px;
+      color: #666;
+      background: rgba(255,255,255,0.85);
+      padding: 4px 8px;
+      border-radius: 999px;
+      z-index: 8;
+    }
+
+    .left .page-number { left: 10px; }
+    .right .page-number { right: 10px; }
+
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      color: #888;
+      font-size: 14px;
+      background:
+        linear-gradient(135deg, #f6f6f6 25%, #fbfbfb 25%, #fbfbfb 50%, #f6f6f6 50%, #f6f6f6 75%, #fbfbfb 75%, #fbfbfb 100%);
+      background-size: 24px 24px;
+    }
+
+    .page.turn-next,
+    .page.turn-prev {
+      z-index: 12;
+    }
+
+    .page.turn-next::before,
+    .page.turn-prev::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .page.turn-next::after,
+    .page.turn-prev::after {
+      content: "";
+      position: absolute;
+      bottom: -2%;
+      width: 46%;
+      height: 40%;
+      pointer-events: none;
+      filter: blur(12px);
+      z-index: 2;
+    }
+
+    .page.turn-next {
+      animation: turnNext 0.95s cubic-bezier(0.22, 0.72, 0.2, 1) forwards;
+    }
+
+    .page.turn-next::before {
+      background:
+        radial-gradient(circle at 100% 100%, rgba(255,255,255,0.18) 0 14%, rgba(255,255,255,0) 24%),
+        linear-gradient(to left, rgba(0,0,0,0.15), rgba(0,0,0,0.02) 16%, rgba(255,255,255,0.1) 42%, rgba(255,255,255,0) 65%);
+      clip-path: polygon(100% 100%, 74% 100%, 100% 74%);
+      animation: curlRight 0.95s ease forwards;
+    }
+
+    .page.turn-next::after {
+      right: -8%;
+      background: radial-gradient(circle at 80% 82%, rgba(0,0,0,0.42), rgba(0,0,0,0.06) 56%, rgba(0,0,0,0) 72%);
+      animation: shadowRight 0.95s ease forwards;
+    }
+
+    .page.turn-prev {
+      animation: turnPrev 0.95s cubic-bezier(0.22, 0.72, 0.2, 1) forwards;
+    }
+
+    .page.turn-prev::before {
+      background:
+        radial-gradient(circle at 0% 100%, rgba(255,255,255,0.18) 0 14%, rgba(255,255,255,0) 24%),
+        linear-gradient(to right, rgba(0,0,0,0.15), rgba(0,0,0,0.02) 16%, rgba(255,255,255,0.1) 42%, rgba(255,255,255,0) 65%);
+      clip-path: polygon(0 100%, 26% 100%, 0 74%);
+      animation: curlLeft 0.95s ease forwards;
+    }
+
+    .page.turn-prev::after {
+      left: -8%;
+      background: radial-gradient(circle at 20% 82%, rgba(0,0,0,0.42), rgba(0,0,0,0.06) 56%, rgba(0,0,0,0) 72%);
+      animation: shadowLeft 0.95s ease forwards;
+    }
+
+    @keyframes turnNext {
+      0% { transform: rotateY(0deg) skewY(0deg); filter: brightness(1); }
+      18% { transform: rotateY(-10deg) skewY(1deg); filter: brightness(0.99); }
+      52% { transform: rotateY(-74deg) skewY(1.2deg); filter: brightness(0.94); }
+      100% { transform: rotateY(-166deg) skewY(0deg); filter: brightness(0.89); }
+    }
+
+    @keyframes turnPrev {
+      0% { transform: rotateY(0deg) skewY(0deg); filter: brightness(1); }
+      18% { transform: rotateY(10deg) skewY(-1deg); filter: brightness(0.99); }
+      52% { transform: rotateY(74deg) skewY(-1.2deg); filter: brightness(0.94); }
+      100% { transform: rotateY(166deg) skewY(0deg); filter: brightness(0.89); }
+    }
+
+    @keyframes curlRight {
+      0% { clip-path: polygon(100% 100%, 80% 100%, 100% 80%); opacity: 0.14; }
+      45% { clip-path: polygon(100% 100%, 42% 100%, 100% 40%); opacity: 0.4; }
+      100% { clip-path: polygon(100% 100%, 16% 100%, 100% 16%); opacity: 0.2; }
+    }
+
+    @keyframes curlLeft {
+      0% { clip-path: polygon(0 100%, 20% 100%, 0 80%); opacity: 0.14; }
+      45% { clip-path: polygon(0 100%, 58% 100%, 0 40%); opacity: 0.4; }
+      100% { clip-path: polygon(0 100%, 84% 100%, 0 16%); opacity: 0.2; }
+    }
+
+    @keyframes shadowRight {
+      0% { transform: translate(0, 0) scale(0.7); opacity: 0.14; }
+      50% { transform: translate(-18%, -12%) scale(1); opacity: 0.42; }
+      100% { transform: translate(-30%, -18%) scale(1.1); opacity: 0.12; }
+    }
+
+    @keyframes shadowLeft {
+      0% { transform: translate(0, 0) scale(0.7); opacity: 0.14; }
+      50% { transform: translate(18%, -12%) scale(1); opacity: 0.42; }
+      100% { transform: translate(30%, -18%) scale(1.1); opacity: 0.12; }
+    }
+
+    .hint {
+      text-align: center;
+      padding: 12px;
+      color: #999;
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .page-stack {
+        width: min(44vw, 360px);
+      }
+      .viewer-wrap {
+        padding: 16px 10px 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <input id="pdfUrl" type="text" placeholder="PDF 링크를 입력하세요" value="sample1.pdf" />
+    <button id="loadBtn">불러오기</button>
+    <button id="prevBtn" class="secondary">이전</button>
+    <button id="nextBtn" class="secondary">다음</button>
+  </div>
+
+  <div class="status" id="status">PDF 링크를 넣고 불러오기를 누르세요.</div>
+
+  <div class="viewer-wrap">
+    <div>
+      <div class="book">
+        <div class="spread" id="spread">
+          <div class="page-stack">
+            <div class="page under left" id="leftUnder"><div class="placeholder">왼쪽 페이지</div></div>
+            <div class="page current left" id="leftPage"><div class="placeholder">왼쪽 페이지</div></div>
+          </div>
+          <div class="gutter-shadow"></div>
+          <div class="page-stack">
+            <div class="page under right" id="rightUnder"><div class="placeholder">오른쪽 페이지</div></div>
+            <div class="page current right" id="rightPage"><div class="placeholder">오른쪽 페이지</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="hint">좌우 두 페이지로 보고, 버튼이나 방향키로 넘길 수 있습니다.</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs';
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+
+    const pdfUrlInput = document.getElementById('pdfUrl');
+    const loadBtn = document.getElementById('loadBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const leftPage = document.getElementById('leftPage');
+    const rightPage = document.getElementById('rightPage');
+    const leftUnder = document.getElementById('leftUnder');
+    const rightUnder = document.getElementById('rightUnder');
+    const status = document.getElementById('status');
+
+    let pdfDoc = null;
+    let currentSpreadStart = 1;
+    let isAnimating = false;
+
+    function setStatus(text) {
+      status.textContent = text;
+    }
+
+    function clearPage(el, label) {
+      el.innerHTML = `<div class="placeholder">${label}</div>`;
+    }
+
+    async function renderPage(pageNumber, container) {
+      if (!pdfDoc || pageNumber < 1 || pageNumber > pdfDoc.numPages) {
+        clearPage(container, '빈 페이지');
+        return;
+      }
+
+      const page = await pdfDoc.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const targetWidth = 1400;
+      const scale = targetWidth / baseViewport.width;
+      const viewport = page.getViewport({ scale });
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      container.innerHTML = '';
+      container.appendChild(canvas);
+
+      const pageNumberEl = document.createElement('div');
+      pageNumberEl.className = 'page-number';
+      pageNumberEl.textContent = `${pageNumber}`;
+      container.appendChild(pageNumberEl);
+
+      await page.render({
+        canvasContext: context,
+        viewport
+      }).promise;
+    }
+
+    async function renderSpread(startPage, mode = 'current') {
+      const leftTarget = mode === 'under' ? leftUnder : leftPage;
+      const rightTarget = mode === 'under' ? rightUnder : rightPage;
+
+      await Promise.all([
+        renderPage(startPage, leftTarget),
+        renderPage(startPage + 1, rightTarget)
+      ]);
+
+      if (mode === 'current') {
+        setStatus(`총 ${pdfDoc.numPages}페이지 중 ${startPage}-${Math.min(startPage + 1, pdfDoc.numPages)}페이지 표시 중`);
+      }
+    }
+
+    async function loadPdf(url) {
+      try {
+        setStatus('PDF 불러오는 중...');
+        const loadingTask = pdfjsLib.getDocument(url);
+        pdfDoc = await loadingTask.promise;
+        currentSpreadStart = 1;
+        await renderSpread(currentSpreadStart, 'current');
+
+        const preloadStart = currentSpreadStart + 2 <= pdfDoc.numPages ? currentSpreadStart + 2 : currentSpreadStart;
+        await renderSpread(preloadStart, 'under');
+      } catch (error) {
+        console.error(error);
+        setStatus('PDF를 불러오지 못했습니다. 링크나 파일 경로를 다시 확인해주세요.');
+        clearPage(leftPage, '로드 실패');
+        clearPage(rightPage, '로드 실패');
+        clearPage(leftUnder, '로드 실패');
+        clearPage(rightUnder, '로드 실패');
+      }
+    }
+
+    async function flip(direction) {
+      if (!pdfDoc || isAnimating) return;
+
+      const nextStart = direction === 'next'
+        ? currentSpreadStart + 2
+        : currentSpreadStart - 2;
+
+      if (nextStart < 1 || nextStart > pdfDoc.numPages) return;
+
+      isAnimating = true;
+      await renderSpread(nextStart, 'under');
+
+      const animatedEl = direction === 'next' ? rightPage : leftPage;
+      const className = direction === 'next' ? 'turn-next' : 'turn-prev';
+
+      animatedEl.classList.remove('turn-next', 'turn-prev');
+      void animatedEl.offsetWidth;
+      animatedEl.classList.add(className);
+
+      setTimeout(async () => {
+        currentSpreadStart = nextStart;
+        await renderSpread(currentSpreadStart, 'current');
+        animatedEl.classList.remove('turn-next', 'turn-prev');
+        isAnimating = false;
+      }, 950);
+    }
+
+    loadBtn.addEventListener('click', () => {
+      const url = pdfUrlInput.value.trim();
+      if (!url) {
+        setStatus('PDF 링크를 먼저 입력해주세요.');
+        return;
+      }
+      loadPdf(url);
+    });
+
+    nextBtn.addEventListener('click', () => flip('next'));
+    prevBtn.addEventListener('click', () => flip('prev'));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') flip('next');
+      if (e.key === 'ArrowLeft') flip('prev');
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const pdfFromQuery = params.get('pdf');
+    if (pdfFromQuery) {
+      pdfUrlInput.value = pdfFromQuery;
+      loadPdf(pdfFromQuery);
+    }
+  </script>
+</body>
+</html>
